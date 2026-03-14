@@ -9,7 +9,7 @@ Host
  └─ docker compose
      ├─ agent1 (Luigi)  :4097 ──── custom MCP server (stdio) ──► agent2:4096
      └─ agent2 (Mario)  :4098
-                        :4099 ──── custom MCP server (HTTP stream, sidecar)
+                        :4099 ──── custom MCP server (SSE, sidecar)
 ```
 
 Both agents run `opencode serve` inside Docker and use the free `opencode/minimax-m2.5-free` model for testing.
@@ -26,7 +26,7 @@ Agent 1's opencode spawns the Python MCP server as a child process (stdio MCP tr
 3. Adds **5 workflow composites**: `opencode_ask`, `opencode_run`, `opencode_status`, `opencode_health`, `opencode_context`.
 4. Serves all 109 tools to Agent 1 over stdio MCP.
 
-Agent 2 runs the same binary with `MCP_PORT=4095`, exposing the same tools over HTTP Streamable transport at `:4099/stream` on the host.
+Agent 2 runs the same binary with `MCP_PORT=4095`, exposing the same tools over SSE transport at `:4099/sse` on the host.
 
 ### About the custom MCP server
 
