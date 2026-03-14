@@ -118,8 +118,15 @@ curl -s -X POST "http://localhost:4098/session/$SESSION/message" \
 ### 4. Test end-to-end delegation (Agent 1 → Agent 2)
 
 ```bash
-bash scripts/curl-test.sh
+SESSION=$(curl -s -X POST http://localhost:4097/session | jq -r '.id')
+curl -s -X POST "http://localhost:4097/session/$SESSION/message" \
+  -H "Content-Type: application/json" \
+  -d '{"parts":[{"type":"text","text":"Use your delegate-to-agent2 skill to ask Agent 2 what its name is, then tell me the answer."}]}' \
+  | jq -r '.parts[] | select(.type=="text") | .text'
+# Expected: Agent 1 delegates to Agent 2, who identifies itself as Mario
 ```
+
+Or use the helper script: `bash scripts/curl-test.sh`
 
 This asks Agent 1 to use its `delegate-to-agent2` skill to query Agent 2's name. Expected output ends with Agent 2 identifying itself as Mario.
 
