@@ -15,9 +15,9 @@ Each agent's config directory is volume-mounted to `/agent` inside its container
 
 Agent 1 → custom MCP server (stdio) → Agent 2's REST API:
 
-Agent 1 uses tools provided by the `agent2` MCP server. These tools are auto-generated at startup by fetching `GET http://agent2:4096/doc` (opencode's OpenAPI spec) and registering one tool per endpoint (~104 tools), plus 5 hand-written workflow composites (`opencode_ask`, `opencode_run`, `opencode_run_final`, `opencode_status`, `opencode_health`).
+Agent 1 uses 5 hand-written workflow tools provided by the `agent2` MCP server: `opencode_ask`, `opencode_run`, `opencode_run_final`, `opencode_status`, `opencode_health`.
 
-Agent 2 also runs the same MCP server binary in SSE mode on port 4095, making all 109 tools available over SSE from the host on port 4099.
+Agent 2 also runs the same MCP server binary in SSE mode on port 4095, making all 5 tools available over SSE from the host on port 4099.
 
 ## Key files
 
@@ -29,7 +29,7 @@ Agent 2 also runs the same MCP server binary in SSE mode on port 4095, making al
 | `agent2-config/opencode.json` | Agent 2 model config |
 | `agent1-config/AGENTS.md` | Agent 1 persona/identity (name: Luigi) |
 | `agent2-config/AGENTS.md` | Agent 2 persona/identity (name: Mario) |
-| `mcp-server/main.py` | Custom Python FastMCP server: fetches opencode OpenAPI spec, registers tools, dual stdio/SSE mode |
+| `mcp-server/main.py` | Custom Python FastMCP server: 5 hand-written workflow tools, dual stdio/SSE mode |
 | `mcp-server/requirements.txt` | Python MCP server deps: `mcp[cli]`, `httpx`, `python-dotenv` |
 | `mcp-server/entrypoint.sh` | Generic entrypoint: runs opencode + optional MCP sidecar sidecar (if `MCP_PORT` set) |
 | `scripts/curl-test.sh` | Helper script to send a test prompt to Agent 1 from the host |
