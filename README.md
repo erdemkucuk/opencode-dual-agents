@@ -22,7 +22,7 @@ Agent 1 uses the `agent2` MCP server. The `opencode-mcp` bridge handles the REST
 
 ### About opencode-mcp
 
-`opencode-mcp` is an **official** bridge maintained by the OpenCode team, released under the **MIT License**. It allows any Model Context Protocol (MCP) client to leverage OpenCode's autonomous capabilities.
+`opencode-mcp` is a community package released under the **MIT License** ([npm](https://www.npmjs.com/package/opencode-mcp), [source](https://github.com/AlaeddineMessadi/opencode-mcp)). It allows any Model Context Protocol (MCP) client to leverage OpenCode's autonomous capabilities.
 
 - **How it works:** It acts as a translator between MCP JSON-RPC commands (via stdio) and the OpenCode "headless" REST API (`opencode serve`).
 - **Capabilities:** It exposes approximately **79 tools** to the AI, allowing it to delegate complex, multi-step tasks (like refactoring or debugging) to a background process.

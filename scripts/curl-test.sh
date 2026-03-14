@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ask agent1 to delegate a query to agent2 via its skill.
+# Ask agent1 to delegate a query to agent2 via the opencode-mcp bridge.
 
 QUESTION="${1:-Ask Agent 2 what its name is, then tell me the answer.}"
 
