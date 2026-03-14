@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-RUN npm install -g opencode-ai && \
+RUN npm install -g opencode-ai opencode-mcp && \
     apt-get update && apt-get install -y curl jq procps iputils-ping bash git net-tools --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
