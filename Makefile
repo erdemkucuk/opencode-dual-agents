@@ -14,4 +14,4 @@ down:
 # Set up test venv (run once)
 .venv:
 	python3 -m venv .venv
-	.venv/bin/pip install pytest httpx
+	.venv/bin/pip install -r requirements.txt

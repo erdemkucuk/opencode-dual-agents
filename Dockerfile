@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-# Install system dependencies and Python 3.12
+# Install system dependencies and Python 3 (3.11 on Debian Bookworm)
 RUN apt-get update && apt-get install -y \
     curl \
     jq \
@@ -10,7 +10,6 @@ RUN apt-get update && apt-get install -y \
     git \
     net-tools \
     python3 \
-    python3-pip \
     python3-venv \
     --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
