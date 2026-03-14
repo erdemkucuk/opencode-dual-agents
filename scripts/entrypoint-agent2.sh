@@ -15,7 +15,7 @@ done
 echo "[agent2] opencode is healthy."
 
 echo "[agent2] Starting custom MCP HTTP stream server on port 4095..."
-MCP_PORT=4095 node /mcp-server/dist/index.js &
+MCP_PORT=4095 /mcp-server/.venv/bin/python3 /mcp-server/main.py &
 MCP_PID=$!
 
 trap "echo '[agent2] Shutting down...'; kill $OPENCODE_PID $MCP_PID 2>/dev/null" EXIT TERM INT

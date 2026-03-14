@@ -5,7 +5,7 @@
     "agent2": {
       "type": "local",
       "enabled": true,
-      "command": ["node", "/mcp-server/dist/index.js"],
+      "command": ["/mcp-server/.venv/bin/python3", "/mcp-server/main.py"],
       "environment": {
         "OPENCODE_BASE_URL": "http://agent2:4096"
       }
