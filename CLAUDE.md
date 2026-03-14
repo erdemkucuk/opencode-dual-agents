@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-Two containerized `opencode serve` instances communicate over a Docker bridge network named `agents`. Both use Google Gemini via `GEMINI_API_KEY`.
+Two containerized `opencode serve` instances communicate over a Docker bridge network named `agents`. Both use the free `opencode/minimax-m2.5-free` model for testing.
 
 - **Agent 1** (`agent1-config/`, host port 4097 → container port 4096) — orchestrator. Spawns the custom MCP server as a local stdio child process to interact with Agent 2.
 - **Agent 2** (`agent2-config/`, host port 4098 → container port 4096) — worker. Also runs the custom MCP server as an HTTP sidecar on port 4095 (host port 4099).
@@ -25,14 +25,13 @@ Agent 2 also runs the same MCP server binary in HTTP Streamable mode on port 409
 |---|---|
 | `Dockerfile` | Shared image: node:20-slim + opencode-ai + built custom MCP server + curl + jq |
 | `docker-compose.yml` | Defines both agent services and the bridge network |
-| `.env` | `GEMINI_API_KEY` — never commit, excluded by all ignore files |
-| `agent1-config/opencode.json` | Agent 1 model config + `agent2` MCP server config (type: local, node command) |
+| `agent1-config/opencode.json` | Agent 1 model config + `agent2` MCP server config (type: local, python command) |
 | `agent2-config/opencode.json` | Agent 2 model config |
 | `agent1-config/AGENTS.md` | Agent 1 persona/identity (name: Luigi) |
 | `agent2-config/AGENTS.md` | Agent 2 persona/identity (name: Mario) |
-| `mcp-server/src/index.ts` | Custom MCP server: fetches opencode OpenAPI spec, registers tools, dual stdio/HTTP mode |
-| `mcp-server/package.json` | MCP server deps: `@modelcontextprotocol/sdk`, `zod` |
-| `scripts/entrypoint-agent2.sh` | Agent 2 startup: runs opencode + MCP HTTP sidecar (`MCP_PORT=4095`) |
+| `mcp-server/main.py` | Custom Python FastMCP server: fetches opencode OpenAPI spec, registers tools, dual stdio/SSE mode |
+| `mcp-server/requirements.txt` | Python MCP server deps: `mcp[cli]`, `httpx`, `python-dotenv` |
+| `mcp-server/entrypoint.sh` | Generic entrypoint: runs opencode + optional MCP sidecar sidecar (if `MCP_PORT` set) |
 | `scripts/curl-test.sh` | Helper script to send a test prompt to Agent 1 from the host |
 
 ## Commands
@@ -57,10 +56,10 @@ docker compose down
 ## OpenCode config conventions
 
 - Use `{env:VAR_NAME}` syntax (not `$VAR`) for environment variables inside `opencode.json`.
-- Model IDs use `google/` prefix (e.g. `google/gemini-3-flash-preview`).
+- Model IDs use `opencode/` prefix (e.g. `opencode/minimax-m2.5-free`).
 - Skills are directories under `.agents/skills/<name>/` where the directory name matches the `name` frontmatter field exactly (lowercase, hyphens only).
 - `--hostname 0.0.0.0` is required when running `opencode serve` inside Docker — the default `127.0.0.1` is not reachable from other containers.
 
-## .env and secrets
+## Secrets
 
-`.env` is excluded from Git, Claude Code, Copilot, and Gemini CLI via `.gitignore`, `.claudeignore`, `.copilotignore`, and `.geminiignore` respectively.
+`.env` is excluded from Git, Claude Code, Copilot, and Gemini CLI via `.gitignore`, `.claudeignore`, `.copilotignore`, and `.geminiignore` respectively. Use it for any API keys required by providers if switching from the free model.

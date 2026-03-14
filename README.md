@@ -12,14 +12,14 @@ Host
                         :4099 ──── custom MCP server (HTTP stream, sidecar)
 ```
 
-Both agents run `opencode serve` inside Docker and use Google Gemini (`gemini-3-flash-preview`) via a shared `GEMINI_API_KEY`.
+Both agents run `opencode serve` inside Docker and use the free `opencode/minimax-m2.5-free` model for testing.
 
 - **Agent 1 / Luigi** — orchestrator. Exposes port 4097 on the host. Spawns the custom MCP server as a local stdio process to delegate tasks to Agent 2.
 - **Agent 2 / Mario** — worker. Exposes port 4098 on the host. Also runs the MCP server as an HTTP sidecar on port 4095 (host: 4099).
 
 ### Inter-agent communication
 
-Agent 1's opencode spawns `node /mcp-server/dist/index.js` as a child process (stdio MCP transport). On startup, this server:
+Agent 1's opencode spawns the Python MCP server as a child process (stdio MCP transport). On startup, this server:
 
 1. Fetches `GET http://agent2:4096/doc` — opencode's live OpenAPI spec.
 2. Auto-generates **~104 tools**, one per API endpoint (sessions, messages, files, providers, config, etc.).
@@ -30,26 +30,19 @@ Agent 2 runs the same binary with `MCP_PORT=4095`, exposing the same tools over 
 
 ### About the custom MCP server
 
-`mcp-server/` is a TypeScript server built directly on `@modelcontextprotocol/sdk`. It replaces the community `opencode-mcp` package with a self-contained implementation that:
+`mcp-server/` is a Python server built on `mcp` (FastMCP). It replaces the community `opencode-mcp` package with a self-contained implementation that:
 
 - Derives its tool list **dynamically** from the live opencode OpenAPI spec — no hardcoded routes.
-- Runs in **dual mode**: stdio (for agent1's local MCP command) or HTTP stream (for the agent2 sidecar), controlled by the `MCP_PORT` environment variable.
-- Has zero runtime dependencies beyond the official MCP SDK and `zod`.
+- Runs in **dual mode**: stdio (for agent1's local MCP command) or SSE (for the agent2 sidecar), controlled by the `MCP_PORT` environment variable.
+- Uses `httpx` to communicate with the opencode API.
 
 ## Prerequisites
 
 - Docker + Docker Compose
-- A Google Gemini API key
 
 ## Setup
 
-1. Copy the example env file and add your key:
-
-   ```bash
-   echo "GEMINI_API_KEY=your_key_here" > .env
-   ```
-
-2. Build and start both agents:
+1. Build and start both agents:
 
    ```bash
    docker compose up --build
@@ -81,19 +74,17 @@ curl -s -X POST "http://localhost:4097/session/$SESSION/message" \
 .
 ├── Dockerfile                          # Shared image (node:20-slim + opencode + MCP server build)
 ├── docker-compose.yml                  # Agent services and bridge network
-├── .env                                # GEMINI_API_KEY (not committed)
 ├── agent1-config/
-│   ├── opencode.json                   # Model config + agent2 MCP (type: local, node command)
+│   ├── opencode.json                   # Model config + agent2 MCP (type: local, python command)
 │   └── AGENTS.md                       # Persona: Luigi
 ├── agent2-config/
 │   ├── opencode.json                   # Model config
 │   └── AGENTS.md                       # Persona: Mario
 ├── mcp-server/
-│   ├── src/index.ts                    # Custom MCP server (dual stdio/HTTP mode)
-│   ├── package.json                    # Deps: @modelcontextprotocol/sdk, zod
-│   └── tsconfig.json                   # TypeScript config
+│   ├── main.py                         # Custom Python MCP server (dual stdio/SSE mode)
+│   ├── requirements.txt                # Python deps
+│   └── entrypoint.sh                   # Generic entrypoint (opencode + optional MCP sidecar)
 └── scripts/
-    ├── entrypoint-agent2.sh            # Starts opencode + MCP HTTP sidecar for agent2
     └── curl-test.sh                    # Test helper
 ```
 
@@ -149,7 +140,7 @@ Or use the helper script: `bash scripts/curl-test.sh`
 |---|---|
 | `curl` hangs or returns empty | Agents not running — check `docker compose ps` |
 | `null` session id | Agent started but not ready yet — wait a few seconds and retry |
-| `"status": "failed"` in `/mcp` | MCP server crashed — check `docker compose logs agent1` for node errors |
+| `"status": "failed"` in `/mcp` | MCP server crashed — check `docker compose logs agent1` for python errors |
 | Delegation returns wrong agent name | MCP tools not connected — verify `curl http://localhost:4097/mcp` shows `"status": "connected"` |
 | Agent 2 MCP HTTP sidecar not responding | Check `docker compose logs agent2` for `[mcp]` lines; verify port 4099 is mapped |
 

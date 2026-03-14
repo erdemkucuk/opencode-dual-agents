@@ -22,12 +22,11 @@ COPY mcp-server/ /mcp-server/
 RUN python3 -m venv /mcp-server/.venv && \
     /mcp-server/.venv/bin/pip install -r /mcp-server/requirements.txt
 
-# Agent2 entrypoint (runs opencode serve + MCP server together)
-COPY scripts/entrypoint-agent2.sh /scripts/entrypoint-agent2.sh
-RUN chmod +x /scripts/entrypoint-agent2.sh
+# Custom MCP bridge entrypoint (runs opencode serve + optional MCP sidecar)
+COPY mcp-server/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 WORKDIR /agent
 EXPOSE 4096 4095
 
-# --hostname 0.0.0.0 is required in Docker.
-CMD ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096"]
+ENTRYPOINT ["/entrypoint.sh"]
