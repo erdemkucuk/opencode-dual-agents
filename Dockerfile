@@ -18,8 +18,8 @@ RUN npm install -g opencode-ai
 
 # Build the custom Python FastMCP bridge server
 COPY mcp-server/ /mcp-server/
-RUN python3 -m venv /mcp-server/.venv && \
-    /mcp-server/.venv/bin/pip install -r /mcp-server/requirements.txt
+RUN python3 -m venv /.venv && \
+    /.venv/bin/pip install -r /mcp-server/requirements.txt
 
 # Custom MCP bridge entrypoint (runs opencode serve + optional MCP sidecar)
 COPY mcp-server/entrypoint.sh /entrypoint.sh
