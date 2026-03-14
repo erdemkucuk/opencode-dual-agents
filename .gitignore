@@ -1,6 +1,25 @@
+# Environment and Secrets
 .env
 .claude/settings.local.json
-.venv
-__pycache__
+
+# Dependencies
+.venv/
+node_modules/
+
+# Python
+__pycache__/
 *.pyc
 *.pyo
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# IDE and Tooling
+.vscode/
+.DS_Store
+
+# Logs and Reports
+*.log
+coverage/
+.coverage
+htmlcov/
