@@ -90,7 +90,24 @@ curl -s -X POST "http://localhost:4097/session/$SESSION/message" \
 
 ## Testing
 
-### 1. Verify both agents are reachable
+### Automated (pytest)
+
+Integration tests in `tests/` cover health checks and end-to-end delegation. The test fixture handles the full `down → build → up → test → down` cycle automatically.
+
+```bash
+# One-time venv setup
+make .venv
+
+# Full cycle: rebuild images, bring up, run all tests, bring down
+make test
+
+# Skip rebuild (faster when only config/prompts changed)
+make test-fast
+```
+
+### Manual
+
+#### 1. Verify both agents are reachable
 
 ```bash
 curl -s http://localhost:4097/session -X POST | jq .   # Agent 1
@@ -99,7 +116,7 @@ curl -s http://localhost:4098/session -X POST | jq .   # Agent 2
 
 Each should return a JSON object with an `id` field.
 
-### 2. Test Agent 1 in isolation
+#### 2. Test Agent 1 in isolation
 
 ```bash
 SESSION=$(curl -s -X POST http://localhost:4097/session | jq -r '.id')
@@ -110,7 +127,7 @@ curl -s -X POST "http://localhost:4097/session/$SESSION/message" \
 # Expected: a reply from Luigi
 ```
 
-### 3. Test Agent 2 in isolation
+#### 3. Test Agent 2 in isolation
 
 ```bash
 SESSION=$(curl -s -X POST http://localhost:4098/session | jq -r '.id')
@@ -121,7 +138,7 @@ curl -s -X POST "http://localhost:4098/session/$SESSION/message" \
 # Expected: a reply from Mario
 ```
 
-### 4. Test end-to-end delegation (Agent 1 → Agent 2)
+#### 4. Test end-to-end delegation (Agent 1 → Agent 2)
 
 ```bash
 SESSION=$(curl -s -X POST http://localhost:4097/session | jq -r '.id')
