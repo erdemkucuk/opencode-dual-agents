@@ -13,7 +13,5 @@ down:
 
 # Set up test venv (run once)
 .venv:
-	@if [ ! -d .venv ]; then \
-		python3.12 -m venv .venv && \
-		.venv/bin/pip install -r requirements.txt; \
-	fi
+	python3.12 -m venv .venv
+	.venv/bin/pip install -r requirements.txt
