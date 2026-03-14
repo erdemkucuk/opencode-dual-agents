@@ -1,5 +1,4 @@
-"""
-Pytest fixtures for integration testing the dual-agent opencode setup.
+"""Pytest fixtures for integration testing the dual-agent opencode setup.
 
 Session-scoped fixture spins up both containers once per test run,
 waits for both agents to be ready, then tears everything down afterward.
@@ -7,8 +6,9 @@ waits for both agents to be ready, then tears everything down afterward.
 
 import subprocess
 import time
-import pytest
+
 import httpx
+import pytest
 
 AGENT1_BASE = "http://localhost:4097"
 AGENT2_BASE = "http://localhost:4098"
@@ -18,7 +18,7 @@ POLL_INTERVAL = 2
 
 def _compose(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["docker", "compose"] + args,
+        ["docker", "compose", *args],
         check=check,
         capture_output=True,
         text=True,
@@ -36,15 +36,12 @@ def _wait_for_agent(base_url: str, name: str, timeout: int = READY_TIMEOUT) -> N
         except Exception as e:
             last_err = e
         time.sleep(POLL_INTERVAL)
-    raise TimeoutError(
-        f"{name} not ready after {timeout}s. Last error: {last_err}"
-    )
+    raise TimeoutError(f"{name} not ready after {timeout}s. Last error: {last_err}")
 
 
 @pytest.fixture(scope="session")
 def agents(request):
-    """
-    Bring up both agent containers (with --build), yield, then tear down.
+    """Bring up both agent containers (with --build), yield, then tear down.
     Pass --no-rebuild to pytest via -k or use the `agents_no_rebuild` fixture
     to skip rebuilding.
     """

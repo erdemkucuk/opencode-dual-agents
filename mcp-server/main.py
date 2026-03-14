@@ -71,6 +71,7 @@ async def call_opencode(
         Parsed JSON (``dict`` or ``list``) when the response contains valid
         JSON; otherwise the raw response text as a ``str``. Returns a
         descriptive error string if the request itself raises an exception.
+
     """
     resolved_path = path
     if path_params:
@@ -89,9 +90,9 @@ async def call_opencode(
             )
             try:
                 return response.json()
-            except Exception:  # noqa: BLE001 — JSON decode errors vary by version
+            except Exception:
                 return response.text
-        except Exception as exc:  # noqa: BLE001 — surface transport errors as strings
+        except Exception as exc:
             return f"Error calling opencode: {exc}"
 
 
@@ -106,6 +107,7 @@ async def opencode_health() -> str:
 
     Returns:
         JSON-formatted health status from ``GET /global/health``.
+
     """
     result = await call_opencode("get", "/global/health")
     return json.dumps(result, indent=2)
@@ -125,6 +127,7 @@ async def opencode_ask(prompt: str, directory: str | None = None) -> str:
     Returns:
         JSON-formatted response from the session message endpoint, or an
         error string if session creation fails.
+
     """
     query: dict[str, str] = {}
     if directory:
@@ -163,6 +166,7 @@ async def opencode_run(
     Returns:
         JSON-formatted list of all messages produced during the session, or
         an error string if session creation fails.
+
     """
     query: dict[str, str] = {}
     if directory:
@@ -192,7 +196,9 @@ async def opencode_run(
             break
 
     messages = await call_opencode(
-        "get", f"/session/{session_id}/message", query_params=query
+        "get",
+        f"/session/{session_id}/message",
+        query_params=query,
     )
     return json.dumps(messages, indent=2)
 
@@ -203,7 +209,7 @@ async def opencode_run_final(
     directory: str | None = None,
     timeout_ms: int = 20_000,
 ) -> str:
-    """Run a task asynchronously and poll for completion, returning only the last message.
+    """Run a task asynchronously and poll for completion, returning the last message.
 
     Fires *prompt* via the async endpoint, then polls ``GET /session/status``
     every two seconds until the session finishes or *timeout_ms* elapses.
@@ -216,6 +222,7 @@ async def opencode_run_final(
     Returns:
         JSON-formatted final message produced during the session, or
         an error string if session creation fails or no messages were returned.
+
     """
     query: dict[str, str] = {}
     if directory:
@@ -245,7 +252,9 @@ async def opencode_run_final(
             break
 
     messages = await call_opencode(
-        "get", f"/session/{session_id}/message", query_params=query
+        "get",
+        f"/session/{session_id}/message",
+        query_params=query,
     )
 
     if isinstance(messages, list) and len(messages) > 0:
@@ -263,6 +272,7 @@ async def opencode_status() -> str:
     Returns:
         JSON object with keys ``health``, ``session_count``, and
         ``providers``.
+
     """
     health = await call_opencode("get", "/global/health")
     sessions = await call_opencode("get", "/session")
@@ -292,8 +302,10 @@ def main() -> None:
             mcp.run(transport="sse", port=MCP_PORT, host="0.0.0.0")
         else:
             mcp.run(transport="stdio")
-    except Exception as exc:  # noqa: BLE001 — fatal startup errors
-        print(f"Fatal error: {exc}")
+    except Exception as exc:
+        import sys
+
+        sys.stderr.write(f"Fatal error: {exc}\n")
         raise SystemExit(1) from exc
 
 
