@@ -12,20 +12,27 @@ AGENT2_BASE = "http://localhost:4098"
 DEFAULT_QUESTION = "Ask Agent 2 what its name is, then tell me the answer."
 
 
-def _send_message(question: str = DEFAULT_QUESTION) -> str:
-    """Create a session on Agent 1 and send a message. Returns the text response."""
-    with httpx.Client(timeout=30) as client:
-        session_id = client.post(f"{AGENT1_BASE}/session").raise_for_status().json()["id"]
+def _send_message_to(base_url: str, question: str) -> str:
+    """Create a session on the given agent and send a message. Returns the text response."""
+    with httpx.Client(timeout=60) as client:
+        session_id = client.post(f"{base_url}/session").raise_for_status().json()["id"]
         payload = {"parts": [{"type": "text", "text": question}]}
         data = client.post(
-            f"{AGENT1_BASE}/session/{session_id}/message", json=payload
+            f"{base_url}/session/{session_id}/message", json=payload
         ).raise_for_status().json()
 
     texts = [p["text"] for p in data.get("parts", []) if p.get("type") == "text"]
     return "\n".join(texts)
 
 
+def _send_message(question: str = DEFAULT_QUESTION) -> str:
+    """Create a session on Agent 1 and send a message. Returns the text response."""
+    return _send_message_to(AGENT1_BASE, question)
+
+
 class TestHealth:
+    """Scenario 1 (partial): verify both agents are reachable via /doc."""
+
     def test_agent1_openapi_doc(self, agents):
         r = httpx.get(f"{AGENT1_BASE}/doc", timeout=10)
         assert r.status_code == 200, f"Agent 1 /doc returned {r.status_code}"
@@ -35,16 +42,54 @@ class TestHealth:
         assert r.status_code == 200, f"Agent 2 /doc returned {r.status_code}"
 
 
-class TestAgentCommunication:
+class TestSessionCreation:
+    """Scenario 1: POST /session on each agent returns a JSON object with an 'id' field."""
+
     def test_agent1_creates_session(self, agents):
         r = httpx.post(f"{AGENT1_BASE}/session", timeout=10)
         assert r.status_code == 200
-        assert "id" in r.json(), "Session response missing 'id'"
+        assert "id" in r.json(), "Agent 1 session response missing 'id'"
+
+    def test_agent2_creates_session(self, agents):
+        r = httpx.post(f"{AGENT2_BASE}/session", timeout=10)
+        assert r.status_code == 200
+        assert "id" in r.json(), "Agent 2 session response missing 'id'"
+
+
+class TestAgent1Isolation:
+    """Scenario 2: Agent 1 (Luigi) responds in isolation and identifies itself."""
 
     def test_agent1_responds_to_message(self, agents):
         """Agent 1 should return a non-empty text response."""
-        response = _send_message("Say hello.")
+        response = _send_message_to(AGENT1_BASE, "Say hello.")
         assert response.strip(), "Agent 1 returned an empty response"
+
+    def test_agent1_identifies_as_luigi(self, agents):
+        """Agent 1 should identify itself as Luigi."""
+        response = _send_message_to(AGENT1_BASE, "What is your name?")
+        assert "Luigi" in response, (
+            f"Expected 'Luigi' in Agent 1 response, got:\n{response}"
+        )
+
+
+class TestAgent2Isolation:
+    """Scenario 3: Agent 2 (Mario) responds in isolation and identifies itself."""
+
+    def test_agent2_responds_to_message(self, agents):
+        """Agent 2 should return a non-empty text response."""
+        response = _send_message_to(AGENT2_BASE, "Say hello.")
+        assert response.strip(), "Agent 2 returned an empty response"
+
+    def test_agent2_identifies_as_mario(self, agents):
+        """Agent 2 should identify itself as Mario."""
+        response = _send_message_to(AGENT2_BASE, "What is your name?")
+        assert "Mario" in response, (
+            f"Expected 'Mario' in Agent 2 response, got:\n{response}"
+        )
+
+
+class TestEndToEndDelegation:
+    """Scenario 4: Agent 1 delegates to Agent 2 via the MCP tool."""
 
     def test_agent1_delegates_to_agent2(self, agents):
         """
