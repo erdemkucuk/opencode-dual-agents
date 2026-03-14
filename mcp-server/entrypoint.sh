@@ -20,7 +20,7 @@ if [ -n "$MCP_PORT" ]; then
     echo "[$AGENT_NAME] Starting custom MCP HTTP stream server on port $MCP_PORT..."
     # Ensure OPENCODE_BASE_URL is set to local for the sidecar if not provided
     export OPENCODE_BASE_URL="${OPENCODE_BASE_URL:-http://localhost:4096}"
-    /mcp-server/.venv/bin/python3 /mcp-server/main.py &
+    /.venv/bin/python3 /mcp-server/main.py &
     MCP_PID=$!
 fi
 
