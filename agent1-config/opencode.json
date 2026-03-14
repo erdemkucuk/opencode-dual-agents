@@ -12,7 +12,7 @@
     "agent2": {
       "type": "local",
       "enabled": true,
-      "command": ["opencode-mcp"],
+      "command": ["node", "/mcp-server/dist/index.js"],
       "environment": {
         "OPENCODE_BASE_URL": "http://agent2:4096"
       }

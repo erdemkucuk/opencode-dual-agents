@@ -7,26 +7,34 @@ A demo of two containerized [opencode](https://opencode.ai) agents communicating
 ```
 Host
  └─ docker compose
-     ├─ agent1 (Luigi)  :4097 ──── opencode-mcp bridge ──► agent2:4096
+     ├─ agent1 (Luigi)  :4097 ──── custom MCP server (stdio) ──► agent2:4096
      └─ agent2 (Mario)  :4098
+                        :4099 ──── custom MCP server (HTTP stream, sidecar)
 ```
 
 Both agents run `opencode serve` inside Docker and use Google Gemini (`gemini-3-flash-preview`) via a shared `GEMINI_API_KEY`.
 
-- **Agent 1 / Luigi** — orchestrator. Exposes port 4097 on the host. Uses `opencode-mcp` to connect to Agent 2 as an MCP server.
-- **Agent 2 / Mario** — worker. Exposes port 4098 on the host. Receives delegated tasks via its MCP tools exposed by the bridge.
+- **Agent 1 / Luigi** — orchestrator. Exposes port 4097 on the host. Spawns the custom MCP server as a local stdio process to delegate tasks to Agent 2.
+- **Agent 2 / Mario** — worker. Exposes port 4098 on the host. Also runs the MCP server as an HTTP sidecar on port 4095 (host: 4099).
 
 ### Inter-agent communication
 
-Agent 1 uses the `agent2` MCP server. The `opencode-mcp` bridge handles the REST API interaction with Agent 2.
+Agent 1's opencode spawns `node /mcp-server/dist/index.js` as a child process (stdio MCP transport). On startup, this server:
 
-### About opencode-mcp
+1. Fetches `GET http://agent2:4096/doc` — opencode's live OpenAPI spec.
+2. Auto-generates **~104 tools**, one per API endpoint (sessions, messages, files, providers, config, etc.).
+3. Adds **5 workflow composites**: `opencode_ask`, `opencode_run`, `opencode_status`, `opencode_health`, `opencode_context`.
+4. Serves all 109 tools to Agent 1 over stdio MCP.
 
-`opencode-mcp` is a community package released under the **MIT License** ([npm](https://www.npmjs.com/package/opencode-mcp), [source](https://github.com/AlaeddineMessadi/opencode-mcp)). It allows any Model Context Protocol (MCP) client to leverage OpenCode's autonomous capabilities.
+Agent 2 runs the same binary with `MCP_PORT=4095`, exposing the same tools over HTTP Streamable transport at `:4099/stream` on the host.
 
-- **How it works:** It acts as a translator between MCP JSON-RPC commands (via stdio) and the OpenCode "headless" REST API (`opencode serve`).
-- **Capabilities:** It exposes approximately **79 tools** to the AI, allowing it to delegate complex, multi-step tasks (like refactoring or debugging) to a background process.
-- **In this project:** Agent 1 (Luigi) uses `opencode-mcp` to treat Agent 2 (Mario) as a remote toolset, enabling seamless inter-agent delegation.
+### About the custom MCP server
+
+`mcp-server/` is a TypeScript server built directly on `@modelcontextprotocol/sdk`. It replaces the community `opencode-mcp` package with a self-contained implementation that:
+
+- Derives its tool list **dynamically** from the live opencode OpenAPI spec — no hardcoded routes.
+- Runs in **dual mode**: stdio (for agent1's local MCP command) or HTTP stream (for the agent2 sidecar), controlled by the `MCP_PORT` environment variable.
+- Has zero runtime dependencies beyond the official MCP SDK and `zod`.
 
 ## Prerequisites
 
@@ -71,16 +79,21 @@ curl -s -X POST "http://localhost:4097/session/$SESSION/message" \
 
 ```
 .
-├── Dockerfile                          # Shared image (node:20-slim + opencode + curl + jq)
+├── Dockerfile                          # Shared image (node:20-slim + opencode + MCP server build)
 ├── docker-compose.yml                  # Agent services and bridge network
 ├── .env                                # GEMINI_API_KEY (not committed)
 ├── agent1-config/
-│   ├── opencode.json                   # Model config + agent2 MCP server
+│   ├── opencode.json                   # Model config + agent2 MCP (type: local, node command)
 │   └── AGENTS.md                       # Persona: Luigi
 ├── agent2-config/
 │   ├── opencode.json                   # Model config
 │   └── AGENTS.md                       # Persona: Mario
+├── mcp-server/
+│   ├── src/index.ts                    # Custom MCP server (dual stdio/HTTP mode)
+│   ├── package.json                    # Deps: @modelcontextprotocol/sdk, zod
+│   └── tsconfig.json                   # TypeScript config
 └── scripts/
+    ├── entrypoint-agent2.sh            # Starts opencode + MCP HTTP sidecar for agent2
     └── curl-test.sh                    # Test helper
 ```
 
@@ -136,7 +149,9 @@ Or use the helper script: `bash scripts/curl-test.sh`
 |---|---|
 | `curl` hangs or returns empty | Agents not running — check `docker compose ps` |
 | `null` session id | Agent started but not ready yet — wait a few seconds and retry |
-| Delegation returns no text | Check `docker compose logs agent1` for `opencode-mcp` execution errors |
+| `"status": "failed"` in `/mcp` | MCP server crashed — check `docker compose logs agent1` for node errors |
+| Delegation returns wrong agent name | MCP tools not connected — verify `curl http://localhost:4097/mcp` shows `"status": "connected"` |
+| Agent 2 MCP HTTP sidecar not responding | Check `docker compose logs agent2` for `[mcp]` lines; verify port 4099 is mapped |
 
 ## Common commands
 

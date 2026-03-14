@@ -1,0 +1,19 @@
+{
+  "name": "opencode-mcp-server",
+  "version": "1.0.0",
+  "description": "Custom MCP server bridging Agent 1 to Agent 2's opencode REST API",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.7.0"
+  }
+}

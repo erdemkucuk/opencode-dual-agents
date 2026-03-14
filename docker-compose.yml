@@ -19,8 +19,10 @@ services:
     volumes:
       - ./agent2-config:/agent
     ports:
-      - "4098:4096"
+      - "4098:4096"   # opencode serve
+      - "4099:4095"   # custom FastMCP SSE server
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     networks:
       - agents
+    command: ["/scripts/entrypoint-agent2.sh"]
