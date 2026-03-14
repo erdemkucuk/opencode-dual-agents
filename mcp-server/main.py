@@ -1,13 +1,13 @@
-"""MCP server bridge exposing Agent 2's opencode REST API as MCP tools.
+"""MCP server bridge exposing an opencode REST API as MCP tools.
 
-At startup, fetches Agent 2's OpenAPI spec and auto-generates ~104 typed MCP
+At startup, fetches an opencode OpenAPI spec and auto-generates ~104 typed MCP
 tools (one per endpoint). Also registers five hand-written composite workflow
 tools for common operations.
 
 Transport mode is controlled by the ``MCP_PORT`` environment variable:
 
-- Unset → stdio mode; Agent 1 spawns this as a local child process.
-- Set    → SSE/HTTP mode on that port; used as Agent 2's network sidecar.
+- Unset → stdio mode; the orchestrator agent spawns this as a local child process.
+- Set    → SSE/HTTP mode on that port; used as a network sidecar.
 """
 
 from __future__ import annotations
@@ -31,9 +31,9 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 
 OPENCODE_BASE: str = os.getenv("OPENCODE_BASE_URL", "http://localhost:4096")
-"""REST API base URL for Agent 2's opencode instance.
+"""REST API base URL for the opencode instance.
 
-Overridden to ``http://agent2:4096`` inside Docker via the environment.
+Defaults to ``http://localhost:4096``.
 """
 
 _raw_port: str | None = os.getenv("MCP_PORT")
@@ -47,7 +47,7 @@ _SPEC_TIMEOUT: float = 5.0
 _HTTP_TIMEOUT: float = 30.0
 _DESCRIPTION_MAX_LEN: int = 500
 
-mcp: FastMCP = FastMCP("agent2-opencode-bridge")
+mcp: FastMCP = FastMCP("opencode-bridge")
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +77,7 @@ async def call_opencode(
     query_params: dict[str, Any] | None = None,
     body: Any = None,
 ) -> Any:
-    """Make an HTTP request to Agent 2's opencode REST API.
+    """Make an HTTP request to the opencode REST API.
 
     Substitutes ``{key}`` placeholders in *path* with values from
     *path_params*, then issues the request with optional query parameters
@@ -119,10 +119,10 @@ async def call_opencode(
 
 
 async def fetch_spec() -> dict[str, Any]:
-    """Fetch Agent 2's OpenAPI spec from ``GET /doc`` with retry logic.
+    """Fetch the opencode OpenAPI spec from ``GET /doc`` with retry logic.
 
     Retries up to ``_SPEC_RETRIES`` times with ``_SPEC_RETRY_DELAY``-second
-    pauses to tolerate the case where Agent 2's opencode server is still
+    pauses to tolerate the case where the opencode server is still
     starting up.
 
     Returns:
@@ -388,9 +388,8 @@ def main() -> None:
     Uses a dedicated event loop to synchronously await the spec before any
     async MCP machinery starts. Transport mode depends on ``MCP_PORT``:
 
-    - Set  → SSE/HTTP server on that port (Agent 2's network-accessible
-      sidecar, exposed on host port 4099).
-    - Unset → stdio subprocess (Agent 1 communicates via stdin/stdout pipes).
+    - Set  → SSE/HTTP server on that port (network-accessible sidecar).
+    - Unset → stdio subprocess (parent process communicates via stdin/stdout).
     """
     try:
         # Fetch the spec synchronously before the MCP async runtime starts.
