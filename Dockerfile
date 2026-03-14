@@ -1,13 +1,32 @@
 FROM node:20-slim
 
-RUN npm install -g opencode-ai opencode-mcp && \
-    apt-get update && apt-get install -y curl jq procps iputils-ping bash git net-tools --no-install-recommends && \
+# Install system dependencies and Python 3.12
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    procps \
+    iputils-ping \
+    bash \
+    git \
+    net-tools \
+    python3 \
+    python3-pip \
+    python3-venv \
+    --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
-WORKDIR /agent
-EXPOSE 4096
+RUN npm install -g opencode-ai
 
-# --hostname 0.0.0.0 is required in Docker.
-# The default (127.0.0.1) binds only to the container loopback
-# and is unreachable from other containers on the network.
-CMD ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096"]
+# Build the custom Python FastMCP bridge server
+COPY mcp-server/ /mcp-server/
+RUN python3 -m venv /mcp-server/.venv && \
+    /mcp-server/.venv/bin/pip install -r /mcp-server/requirements.txt
+
+# Custom MCP bridge entrypoint (runs opencode serve + optional MCP sidecar)
+COPY mcp-server/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+WORKDIR /agent
+EXPOSE 4096 4095
+
+ENTRYPOINT ["/entrypoint.sh"]

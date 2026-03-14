@@ -1,11 +1,4 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "google": {
-      "options": {
-        "apiKey": "{env:GEMINI_API_KEY}"
-      }
-    }
-  },
-  "model": "google/gemini-3-flash-preview"
+  "model": "opencode/minimax-m2.5-free"
 }

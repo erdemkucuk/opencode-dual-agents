@@ -5,22 +5,24 @@ networks:
 services:
   agent1:
     build: .
+    environment:
+      - AGENT_NAME=agent1
     volumes:
       - ./agent1-config:/agent
     ports:
       - "4097:4096"
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
     networks:
       - agents
 
   agent2:
     build: .
+    environment:
+      - AGENT_NAME=agent2
+      - MCP_PORT=4095
     volumes:
       - ./agent2-config:/agent
     ports:
-      - "4098:4096"
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - "4098:4096"   # opencode serve
+      - "4099:4095"   # custom FastMCP SSE server
     networks:
       - agents
