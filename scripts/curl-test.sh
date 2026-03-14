@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Ask agent1 to delegate a query to agent2 via its skill.
 
-QUESTION="${1:-Use your delegate-to-agent2 skill to ask Agent 2 what its name is, then tell me the answer.}"
+QUESTION="${1:-Ask Agent 2 what its name is, then tell me the answer.}"
 
 SESSION=$(curl -s -X POST http://localhost:4097/session | jq -r '.id')
 
