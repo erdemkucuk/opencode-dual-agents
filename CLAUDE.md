@@ -53,6 +53,25 @@ docker compose logs -f agent1
 docker compose down
 ```
 
+## Testing
+
+Automated integration tests live in `tests/`. The session-scoped fixture in `conftest.py` handles the full lifecycle: `docker compose down` → `up --build -d` → wait for Agent 1 → run tests → `docker compose down`.
+
+```bash
+# One-time venv setup
+make .venv
+
+# Full cycle: rebuild images, bring up, run tests, bring down
+make test
+
+# Skip rebuild (faster when only config/prompts changed, not Dockerfile)
+make test-fast
+```
+
+Tests (`tests/test_integration.py`):
+- `TestHealth` — verifies `/doc` endpoints on both agents return 200
+- `TestAgentCommunication` — session creation, non-empty response, and end-to-end delegation (Agent 1 → Agent 2, expects "Mario" in reply)
+
 ## OpenCode config conventions
 
 - Use `{env:VAR_NAME}` syntax (not `$VAR`) for environment variables inside `opencode.json`.
