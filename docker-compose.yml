@@ -1,0 +1,26 @@
+networks:
+  agents:
+    driver: bridge
+
+services:
+  agent1:
+    build: .
+    volumes:
+      - ./agent1-config:/agent
+    ports:
+      - "4097:4096"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    networks:
+      - agents
+
+  agent2:
+    build: .
+    volumes:
+      - ./agent2-config:/agent
+    ports:
+      - "4098:4096"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    networks:
+      - agents
