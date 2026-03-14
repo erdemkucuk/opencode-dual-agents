@@ -23,7 +23,7 @@ Agent 1's opencode spawns the Python MCP server as a child process (stdio MCP tr
 
 1. Fetches `GET http://agent2:4096/doc` — opencode's live OpenAPI spec.
 2. Auto-generates **~104 tools**, one per API endpoint (sessions, messages, files, providers, config, etc.).
-3. Adds **5 workflow composites**: `opencode_ask`, `opencode_run`, `opencode_status`, `opencode_health`, `opencode_context`.
+3. Adds **5 workflow composites**: `opencode_ask`, `opencode_run`, `opencode_run_final`, `opencode_status`, `opencode_health`.
 4. Serves all 109 tools to Agent 1 over stdio MCP.
 
 Agent 2 runs the same binary with `MCP_PORT=4095`, exposing the same tools over SSE transport at `:4099/sse` on the host.

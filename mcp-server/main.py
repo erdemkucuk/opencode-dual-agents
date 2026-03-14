@@ -198,6 +198,63 @@ async def opencode_run(
 
 
 @mcp.tool()
+async def opencode_run_final(
+    prompt: str,
+    directory: str | None = None,
+    timeout_ms: int = 20_000,
+) -> str:
+    """Run a task asynchronously and poll for completion, returning only the last message.
+
+    Fires *prompt* via the async endpoint, then polls ``GET /session/status``
+    every two seconds until the session finishes or *timeout_ms* elapses.
+
+    Args:
+        prompt: Natural-language task for the opencode agent.
+        directory: Optional working directory path for the session.
+        timeout_ms: Maximum time to wait for completion, in milliseconds.
+
+    Returns:
+        JSON-formatted final message produced during the session, or
+        an error string if session creation fails or no messages were returned.
+    """
+    query: dict[str, str] = {}
+    if directory:
+        query["directory"] = directory
+
+    session = await call_opencode("post", "/session", query_params=query)
+    if isinstance(session, str) or "id" not in session:
+        return f"Failed to create session: {session}"
+
+    session_id: str = session["id"]
+    await call_opencode(
+        "post",
+        f"/session/{session_id}/prompt_async",
+        query_params=query,
+        body={"parts": [{"type": "text", "text": prompt}]},
+    )
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + (timeout_ms / 1000.0)
+    while loop.time() < deadline:
+        await asyncio.sleep(2)
+        status = await call_opencode("get", "/session/status")
+        if isinstance(status, dict) and session_id in status:
+            if status[session_id].get("running") is not True:
+                break
+        else:
+            break
+
+    messages = await call_opencode(
+        "get", f"/session/{session_id}/message", query_params=query
+    )
+
+    if isinstance(messages, list) and len(messages) > 0:
+        return json.dumps(messages[-1], indent=2)
+
+    return json.dumps(messages, indent=2)
+
+
+@mcp.tool()
 async def opencode_status() -> str:
     """Get a combined snapshot of server health, session count, and providers.
 
@@ -215,26 +272,6 @@ async def opencode_status() -> str:
         {"health": health, "session_count": session_count, "providers": providers},
         indent=2,
     )
-
-
-@mcp.tool()
-async def opencode_context(directory: str | None = None) -> str:
-    """Get current project context: resolved path, VCS info, and config.
-
-    Args:
-        directory: Optional path to query context for a specific directory.
-
-    Returns:
-        JSON object with keys ``path``, ``vcs``, and ``config``.
-    """
-    query: dict[str, str] = {}
-    if directory:
-        query["directory"] = directory
-
-    path = await call_opencode("get", "/path", query_params=query)
-    vcs = await call_opencode("get", "/vcs", query_params=query)
-    config = await call_opencode("get", "/config", query_params=query)
-    return json.dumps({"path": path, "vcs": vcs, "config": config}, indent=2)
 
 
 # ---------------------------------------------------------------------------

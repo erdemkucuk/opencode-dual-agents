@@ -15,7 +15,7 @@ Each agent's config directory is volume-mounted to `/agent` inside its container
 
 Agent 1 → custom MCP server (stdio) → Agent 2's REST API:
 
-Agent 1 uses tools provided by the `agent2` MCP server. These tools are auto-generated at startup by fetching `GET http://agent2:4096/doc` (opencode's OpenAPI spec) and registering one tool per endpoint (~104 tools), plus 5 hand-written workflow composites (`opencode_ask`, `opencode_run`, `opencode_status`, `opencode_health`, `opencode_context`).
+Agent 1 uses tools provided by the `agent2` MCP server. These tools are auto-generated at startup by fetching `GET http://agent2:4096/doc` (opencode's OpenAPI spec) and registering one tool per endpoint (~104 tools), plus 5 hand-written workflow composites (`opencode_ask`, `opencode_run`, `opencode_run_final`, `opencode_status`, `opencode_health`).
 
 Agent 2 also runs the same MCP server binary in SSE mode on port 4095, making all 109 tools available over SSE from the host on port 4099.
 
