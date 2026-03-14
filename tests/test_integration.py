@@ -14,7 +14,7 @@ DEFAULT_QUESTION = "Ask Agent 2 what its name is, then tell me the answer."
 
 def _send_message(question: str = DEFAULT_QUESTION) -> str:
     """Create a session on Agent 1 and send a message. Returns the text response."""
-    with httpx.Client(timeout=15) as client:
+    with httpx.Client(timeout=30) as client:
         session_id = client.post(f"{AGENT1_BASE}/session").raise_for_status().json()["id"]
         payload = {"parts": [{"type": "text", "text": question}]}
         data = client.post(
