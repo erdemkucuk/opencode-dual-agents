@@ -19,7 +19,15 @@ Both agents run `opencode serve` inside Docker and use the free `opencode/minima
 
 ### Inter-agent communication
 
-Agent 1's opencode spawns the Python MCP server as a child process (stdio MCP transport). The server exposes **5 workflow tools**: `opencode_ask`, `opencode_run`, `opencode_run_final`, `opencode_status`, `opencode_health`.
+Agent 1's opencode spawns the Python MCP server as a child process (stdio MCP transport). The server exposes **5 workflow tools**:
+
+| Tool | Description |
+|---|---|
+| `opencode_health` | Lightweight ping — calls `GET /global/health` and returns the raw JSON status. Use it to verify Agent 2 is reachable before delegating work. |
+| `opencode_ask` | **One-shot synchronous call.** Creates a new session, posts the prompt to `POST /session/{id}/message`, and returns the full response immediately. Best for short questions where you want a direct answer without waiting for a background task. |
+| `opencode_run` | **Async task with full message history.** Posts the prompt to `POST /session/{id}/prompt_async`, then polls `GET /session/status` every 2 seconds until the session finishes (or a configurable `timeout_ms` elapses). Returns the complete list of all messages produced during the session. |
+| `opencode_run_final` | Same async/poll flow as `opencode_run`, but returns only the **last message** instead of the full history. Useful when you only care about the final answer and want to avoid processing intermediate tool-call messages. |
+| `opencode_status` | **Diagnostic snapshot.** Bundles three API calls — `GET /global/health`, `GET /session` (count), and `GET /provider` — into a single JSON response with keys `health`, `session_count`, and `providers`. |
 
 Agent 2 runs the same server with `MCP_PORT=4095`, exposing the same 5 tools over SSE transport at `:4099/sse` on the host.
 
@@ -27,7 +35,7 @@ Agent 2 runs the same server with `MCP_PORT=4095`, exposing the same 5 tools ove
 
 `mcp-server/` is a Python server built on `mcp` (FastMCP). It replaces the community `opencode-mcp` package with a self-contained implementation that:
 
-- Exposes **5 hand-written workflow tools**: `opencode_ask`, `opencode_run`, `opencode_run_final`, `opencode_status`, `opencode_health`.
+- Exposes **5 hand-written workflow tools** (see table above): `opencode_ask`, `opencode_run`, `opencode_run_final`, `opencode_status`, `opencode_health`.
 - Runs in **dual mode**: stdio (for agent1's local MCP command) or SSE (for the agent2 sidecar), controlled by the `MCP_PORT` environment variable.
 - Uses `httpx` to communicate with the opencode API.
 
