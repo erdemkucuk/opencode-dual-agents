@@ -148,8 +148,7 @@ async def fetch_spec() -> dict[str, Any]:
             print(f"Waiting for opencode (attempt {attempt + 1})...")
 
     raise RuntimeError(
-        f"opencode never became healthy after "
-        f"{_SPEC_RETRIES * _SPEC_RETRY_DELAY:.0f} s"
+        f"opencode never became healthy after {_SPEC_RETRIES * _SPEC_RETRY_DELAY:.0f} s"
     )
 
 
