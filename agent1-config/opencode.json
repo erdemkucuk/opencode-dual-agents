@@ -3,12 +3,9 @@
   "model": "opencode/minimax-m2.5-free",
   "mcp": {
     "agent2": {
-      "type": "local",
+      "type": "remote",
       "enabled": true,
-      "command": ["/.venv/bin/python3", "/mcp-server/main.py"],
-      "environment": {
-        "OPENCODE_BASE_URL": "http://agent2:4096"
-      }
+      "url": "http://agent2:4095/sse"
     }
   }
 }
