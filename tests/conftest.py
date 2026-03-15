@@ -12,9 +12,10 @@ import pytest
 
 AGENT1_BASE = "http://localhost:4097"
 AGENT2_BASE = "http://localhost:4098"
-AGENT1_MCP = "http://localhost:4100"
-AGENT2_MCP = "http://localhost:4099"
-READY_TIMEOUT = 30  # seconds to wait for containers to be ready
+AGENT1_MCP_BASE = "http://localhost:4100"
+AGENT2_MCP_BASE = "http://localhost:4099"
+READY_TIMEOUT = 30  # seconds to wait for opencode endpoints
+MCP_READY_TIMEOUT = 10  # seconds to wait for MCP sidecar endpoints (start after opencode)
 POLL_INTERVAL = 2
 
 
@@ -45,26 +46,24 @@ def _wait_for_url(url: str, name: str, timeout: int = READY_TIMEOUT) -> None:
     raise TimeoutError(f"{name} not ready after {timeout}s. Last error: {last_err}")
 
 
+def _wait_for_agent(base_url: str, name: str, timeout: int = READY_TIMEOUT) -> None:
+    _wait_for_url(f"{base_url}/doc", name, timeout)
+
+
 @pytest.fixture(scope="session")
-def agents(request):
-    """Bring up both agent containers, yield, then tear down."""
+def agents():
+    """Bring up both agent containers (with --build), yield, then tear down."""
     _compose(["down", "--remove-orphans"])
-    _compose(["up", "-d"])
+    _compose(["up", "--build", "-d"])
 
     try:
-        _wait_for_url(f"{AGENT1_BASE}/doc", "Agent 1 opencode")
-        _wait_for_url(f"{AGENT2_BASE}/doc", "Agent 2 opencode")
-        _wait_for_url(f"{AGENT1_MCP}/sse", "Agent 1 MCP")
-        _wait_for_url(f"{AGENT2_MCP}/sse", "Agent 2 MCP")
+        # First wait for both opencode HTTP endpoints to be ready.
+        _wait_for_agent(AGENT1_BASE, "Agent 1")
+        _wait_for_agent(AGENT2_BASE, "Agent 2")
+        # MCP sidecars start only after opencode is healthy, so a shorter
+        # timeout is sufficient once the main endpoints are up.
+        _wait_for_url(f"{AGENT1_MCP_BASE}/sse", "Agent 1 MCP", MCP_READY_TIMEOUT)
+        _wait_for_url(f"{AGENT2_MCP_BASE}/sse", "Agent 2 MCP", MCP_READY_TIMEOUT)
         yield
     finally:
         _compose(["down", "--remove-orphans"])
-
-
-def pytest_addoption(parser):
-    parser.addoption(
-        "--no-rebuild",
-        action="store_true",
-        default=False,
-        help="Ignored; kept for backwards compatibility. Rebuild is handled by make.",
-    )
