@@ -15,7 +15,7 @@ AGENT2_BASE = "http://localhost:4098"
 AGENT1_MCP_BASE = "http://localhost:4100"
 AGENT2_MCP_BASE = "http://localhost:4099"
 READY_TIMEOUT = 30  # seconds to wait for opencode endpoints
-MCP_READY_TIMEOUT = 10  # seconds to wait for MCP sidecar endpoints (start after opencode)
+MCP_READY_TIMEOUT = 10  # seconds to wait for MCP sidecar (starts after opencode)
 POLL_INTERVAL = 2
 
 

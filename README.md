@@ -52,15 +52,7 @@ Both agents run the MCP server as an SSE sidecar on port 8000 (container), expos
 
 ## Usage
 
-Send a prompt to Agent 1 using the helper script:
-
-```bash
-bash scripts/curl-test.sh
-# or with a custom prompt:
-bash scripts/curl-test.sh "Ask Agent 2 to summarise the Fibonacci sequence in 2 sentences."
-```
-
-You can also hit the API directly:
+Send a prompt to Agent 1 by hitting the API directly:
 
 ```bash
 SESSION=$(curl -s -X POST http://localhost:4097/session | jq -r '.id')
@@ -86,8 +78,6 @@ curl -s -X POST "http://localhost:4097/session/$SESSION/message" \
 │   ├── bridge.py                       # Custom Python MCP server (SSE/HTTP mode)
 │   ├── requirements.txt                # Python deps
 │   └── entrypoint.sh                   # Generic entrypoint (opencode + optional MCP sidecar)
-└── scripts/
-    └── curl-test.sh                    # Test helper
 ```
 
 ## Testing
@@ -150,8 +140,6 @@ curl -s -X POST "http://localhost:4097/session/$SESSION/message" \
   | jq -r '.parts[] | select(.type=="text") | .text'
 # Expected: Agent 1 uses MCP tool to query Agent 2, who identifies itself as Mario
 ```
-
-Or use the helper script: `bash scripts/curl-test.sh`
 
 ### Troubleshooting
 

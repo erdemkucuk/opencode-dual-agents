@@ -1,6 +1,6 @@
 """Integration smoke tests for the dual-agent opencode setup.
 
-Replicates what scripts/curl-test.sh does, but as assertable pytest tests.
+Assertable pytest tests for the dual-agent opencode setup.
 """
 
 import httpx
