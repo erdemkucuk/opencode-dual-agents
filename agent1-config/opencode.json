@@ -5,7 +5,7 @@
     "agent2": {
       "type": "remote",
       "enabled": true,
-      "url": "http://agent2:4095/sse"
+      "url": "http://agent2:8000/sse"
     }
   }
 }

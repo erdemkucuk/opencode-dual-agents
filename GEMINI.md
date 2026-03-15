@@ -8,8 +8,8 @@ The system consists of two Docker services:
 
 - **Agent 1 (Luigi)**: Orchestrator agent.
   - Port: `4097` (host) -> `4096` (container).
+  - Port (MCP): `4100` (host) -> `4095` (container) - SSE sidecar mode.
   - Config: `agent1-config/`.
-  - Delegation: Uses a local stdio MCP bridge (`mcp-server/main.py`) to communicate with Agent 2's REST API.
 - **Agent 2 (Mario)**: Worker agent.
   - Port: `4098` (host) -> `4096` (container).
   - Port (MCP): `4099` (host) -> `4095` (container) - SSE sidecar mode.
@@ -32,7 +32,7 @@ Agent 1 uses 5 custom workflow tools provided by the `mcp-server`:
 | `docker-compose.yml` | Service definitions and bridge network (`agents`). |
 | `agent1-config/` | Agent 1 configuration and identity (Luigi). |
 | `agent2-config/` | Agent 2 configuration and identity (Mario). |
-| `mcp-server/main.py` | Custom Python FastMCP server (dual stdio/SSE mode). |
+| `mcp-server/bridge.py` | Custom Python FastMCP server (dual stdio/SSE mode). |
 | `mcp-server/entrypoint.sh` | Generic container entrypoint for opencode + optional MCP sidecar. |
 | `tests/` | Pytest integration tests for end-to-end communication. |
 
@@ -81,6 +81,6 @@ docker compose logs -f agent1
 - A session-scoped fixture handles the Docker lifecycle during testing.
 
 ### Adding New Tools
-- Modify `mcp-server/main.py` to add new `@mcp.tool()` definitions.
+- Modify `mcp-server/bridge.py` to add new `@mcp.tool()` definitions.
 - Ensure the tools are properly documented with docstrings for the LLM to understand their usage.
 - If the tool requires new dependencies, update `mcp-server/requirements.txt`.

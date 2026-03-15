@@ -29,14 +29,14 @@ Agent 1's opencode spawns the Python MCP server as a child process (stdio MCP tr
 | `opencode_run_final` | Same async/poll flow as `opencode_run`, but returns only the **last message** instead of the full history. Useful when you only care about the final answer and want to avoid processing intermediate tool-call messages. |
 | `opencode_status` | **Diagnostic snapshot.** Bundles three API calls — `GET /global/health`, `GET /session` (count), and `GET /provider` — into a single JSON response with keys `health`, `session_count`, and `providers`. |
 
-Agent 2 runs the same server with `MCP_PORT=4095`, exposing the same 5 tools over SSE transport at `:4099/sse` on the host.
+Both agents run the MCP server as an SSE sidecar on port 8000 (container), exposing the same 5 tools at `:4100/sse` (agent1) and `:4099/sse` (agent2) on the host.
 
 ### About the custom MCP server
 
 `mcp-server/` is a Python server built on `mcp` (FastMCP). It replaces the community `opencode-mcp` package with a self-contained implementation that:
 
 - Exposes **5 hand-written workflow tools** (see table above): `opencode_ask`, `opencode_run`, `opencode_run_final`, `opencode_status`, `opencode_health`.
-- Runs in **dual mode**: stdio (for agent1's local MCP command) or SSE (for the agent2 sidecar), controlled by the `MCP_PORT` environment variable.
+- Always runs in **SSE/HTTP mode** on port 8000.
 - Uses `httpx` to communicate with the opencode API.
 
 ## Prerequisites
@@ -84,7 +84,7 @@ curl -s -X POST "http://localhost:4097/session/$SESSION/message" \
 │   ├── opencode.json                   # Model config
 │   └── AGENTS.md                       # Persona: Mario
 ├── mcp-server/
-│   ├── main.py                         # Custom Python MCP server (dual stdio/SSE mode)
+│   ├── bridge.py                       # Custom Python MCP server (SSE/HTTP mode)
 │   ├── requirements.txt                # Python deps
 │   └── entrypoint.sh                   # Generic entrypoint (opencode + optional MCP sidecar)
 └── scripts/

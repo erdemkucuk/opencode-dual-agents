@@ -2,7 +2,8 @@
 
 # Full cycle: rebuild images, bring up, run tests, bring down
 test: .venv
-	.venv/bin/pytest tests/ -v
+	docker compose build
+	.venv/bin/pytest tests/ -v --no-rebuild
 
 # Skip rebuild (faster when only config/prompts changed, not Dockerfile)
 test-fast: .venv
