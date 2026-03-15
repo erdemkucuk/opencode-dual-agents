@@ -8,11 +8,11 @@ The system consists of two Docker services:
 
 - **Agent 1 (Luigi)**: Orchestrator agent.
   - Port: `4097` (host) -> `4096` (container).
-  - Port (MCP): `4100` (host) -> `4095` (container) - SSE sidecar mode.
+  - Port (MCP): `4100` (host) -> `8000` (container) - SSE sidecar mode.
   - Config: `agent1-config/`.
 - **Agent 2 (Mario)**: Worker agent.
   - Port: `4098` (host) -> `4096` (container).
-  - Port (MCP): `4099` (host) -> `4095` (container) - SSE sidecar mode.
+  - Port (MCP): `4099` (host) -> `8000` (container) - SSE sidecar mode.
   - Config: `agent2-config/`.
 
 ### Inter-agent Communication
