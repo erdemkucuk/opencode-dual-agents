@@ -3,23 +3,23 @@
 .claude/settings.local.json
 
 # Dependencies
-.venv/
-node_modules/
+.venv
+node_modules
 
 # Python
-__pycache__/
+__pycache__
 *.pyc
 *.pyo
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
+.mypy_cache
+.pytest_cache
+.ruff_cache
 
 # IDE and Tooling
-.vscode/
+.vscode
 .DS_Store
 
 # Logs and Reports
 *.log
-coverage/
+coverage
 .coverage
 htmlcov/
