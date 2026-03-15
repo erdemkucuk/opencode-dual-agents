@@ -2,10 +2,10 @@
   "$schema": "https://opencode.ai/config.json",
   "model": "opencode/minimax-m2.5-free",
   "mcp": {
-    "agent2": {
+    "opencode-bridge": {
       "type": "remote",
       "enabled": true,
-      "url": "http://agent2:4095/sse"
+      "url": "http://agent2:8000/sse"
     }
   }
 }

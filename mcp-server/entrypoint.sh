@@ -21,25 +21,14 @@ until curl -sf http://localhost:4096/global/health > /dev/null 2>&1; do
 done
 echo "[$AGENT_NAME] opencode is healthy."
 
-# If MCP_PORT is set, start the custom MCP bridge as an HTTP sidecar.
+# Start the custom MCP bridge as an HTTP sidecar on port 8000.
 # This makes all opencode tools available over SSE (Server-Sent Events).
-if [ -n "$MCP_PORT" ]; then
-    echo "[$AGENT_NAME] Starting custom MCP HTTP stream server on port $MCP_PORT..."
-    
-    # Default OPENCODE_BASE_URL to the local instance if not already set.
-    export OPENCODE_BASE_URL="${OPENCODE_BASE_URL:-http://localhost:4096}"
-    
-    # Run the Python MCP server using the root-level virtual environment.
-    /.venv/bin/python3 /mcp-server/main.py &
-    MCP_PID=$!
-fi
+echo "[$AGENT_NAME] Starting custom MCP HTTP stream server on port 8000..."
+export OPENCODE_BASE_URL="${OPENCODE_BASE_URL:-http://localhost:4096}"
+/.venv/bin/python3 /mcp-server/bridge.py &
+MCP_PID=$!
 
 # Ensure child processes are terminated gracefully when the script exits.
 trap "echo '[$AGENT_NAME] Shutting down...'; kill $OPENCODE_PID $MCP_PID 2>/dev/null" EXIT TERM INT
 
-# Wait for the background processes to finish (blocking the container).
-if [ -n "$MCP_PID" ]; then
-    wait $OPENCODE_PID $MCP_PID
-else
-    wait $OPENCODE_PID
-fi
+wait $OPENCODE_PID $MCP_PID

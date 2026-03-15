@@ -1,12 +1,10 @@
-"""MCP server bridge exposing an opencode REST API via high-level workflow tools.
+"""
+MCP server bridge exposing an opencode REST API via high-level workflow tools.
 
 This server provides five hand-written composite workflow tools for common
 operations, acting as a simplified interface for inter-agent delegation.
 
-Transport mode is controlled by the ``MCP_PORT`` environment variable:
-
-- Unset → stdio mode; the orchestrator agent spawns this as a local child process.
-- Set    → SSE/HTTP mode on that port; used as a network sidecar.
+Always runs as an SSE/HTTP server on port 8000.
 """
 
 from __future__ import annotations
@@ -20,7 +18,7 @@ import httpx
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
-# Load .env so OPENCODE_BASE_URL and MCP_PORT can be set without shell exports.
+# Load .env so OPENCODE_BASE_URL can be set without shell exports.
 load_dotenv()
 
 # ---------------------------------------------------------------------------
@@ -33,16 +31,12 @@ OPENCODE_BASE: str = os.getenv("OPENCODE_BASE_URL", "http://localhost:4096")
 Defaults to ``http://localhost:4096``.
 """
 
-_raw_port: str | None = os.getenv("MCP_PORT")
-MCP_PORT: int | None = int(_raw_port) if _raw_port else None
-"""HTTP port for SSE transport; ``None`` selects stdio mode."""
-
-_HTTP_TIMEOUT: float = 30.0
+_HTTP_TIMEOUT: float = 60.0
 
 mcp: FastMCP = FastMCP(
     "opencode-bridge",
     host="0.0.0.0",
-    port=MCP_PORT or 8000,
+    port=8000,
 )
 
 
@@ -100,6 +94,33 @@ async def call_opencode(
             return f"Error calling opencode: {exc}"
 
 
+async def _create_session(directory: str | None) -> tuple[str, str, dict[str, str]]:
+    """Create a new opencode session.
+
+    Args:
+        directory: Optional working directory for the session.  When
+            provided it is forwarded as a ``directory`` query parameter on
+            every subsequent request that belongs to this session.
+
+    Returns:
+        A ``(error_string, session_id, query)`` tuple where:
+
+        - *error_string* — non-empty human-readable message when session
+          creation fails; empty string on success.
+        - *session_id* — the opaque session identifier returned by the API;
+          empty string on failure.
+        - *query* — ready-to-use query-parameter dict (``{"directory": …}``
+          when *directory* was supplied, otherwise ``{}``); pass this as
+          *query_params* to every ``call_opencode`` call in the same session
+          so the API routes requests to the correct working directory.
+    """
+    query: dict[str, str] = {"directory": directory} if directory else {}
+    session = await call_opencode("post", "/session", query_params=query)
+    if isinstance(session, str) or "id" not in session:
+        return f"Failed to create session: {session}", "", {}
+    return "", session["id"], query
+
+
 # ---------------------------------------------------------------------------
 # Hand-written high-level workflow tools
 # ---------------------------------------------------------------------------
@@ -133,15 +154,10 @@ async def opencode_ask(prompt: str, directory: str | None = None) -> str:
         error string if session creation fails.
 
     """
-    query: dict[str, str] = {}
-    if directory:
-        query["directory"] = directory
+    error, session_id, query = await _create_session(directory)
+    if error:
+        return error
 
-    session = await call_opencode("post", "/session", query_params=query)
-    if isinstance(session, str) or "id" not in session:
-        return f"Failed to create session: {session}"
-
-    session_id: str = session["id"]
     response = await call_opencode(
         "post",
         f"/session/{session_id}/message",
@@ -149,6 +165,50 @@ async def opencode_ask(prompt: str, directory: str | None = None) -> str:
         body={"parts": [{"type": "text", "text": prompt}]},
     )
     return json.dumps(response, indent=2)
+
+
+async def _run_async_session(
+    prompt: str,
+    directory: str | None,
+    timeout_ms: int,
+) -> tuple[str, list[Any] | Any]:
+    """Create a session, fire an async prompt, and poll until completion.
+
+    Returns:
+        A ``(error_string, messages)`` tuple.  On failure *error_string* is
+        non-empty and *messages* is ``None``; on success *error_string* is
+        empty and *messages* holds the session message list.
+    """
+    error, session_id, query = await _create_session(directory)
+    if error:
+        return error, None
+
+    prompt_result = await call_opencode(
+        "post",
+        f"/session/{session_id}/prompt_async",
+        query_params=query,
+        body={"parts": [{"type": "text", "text": prompt}]},
+    )
+    if isinstance(prompt_result, str) and prompt_result.startswith("Error"):
+        return f"Failed to submit prompt: {prompt_result}", None
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + (timeout_ms / 1000.0)
+    while loop.time() < deadline:
+        await asyncio.sleep(2)
+        status = await call_opencode("get", "/session/status")
+        if isinstance(status, dict) and session_id in status:
+            if status[session_id].get("running") is not True:
+                break
+        else:
+            break
+
+    messages = await call_opencode(
+        "get",
+        f"/session/{session_id}/message",
+        query_params=query,
+    )
+    return "", messages
 
 
 @mcp.tool()
@@ -172,38 +232,9 @@ async def opencode_run(
         an error string if session creation fails.
 
     """
-    query: dict[str, str] = {}
-    if directory:
-        query["directory"] = directory
-
-    session = await call_opencode("post", "/session", query_params=query)
-    if isinstance(session, str) or "id" not in session:
-        return f"Failed to create session: {session}"
-
-    session_id: str = session["id"]
-    await call_opencode(
-        "post",
-        f"/session/{session_id}/prompt_async",
-        query_params=query,
-        body={"parts": [{"type": "text", "text": prompt}]},
-    )
-
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + (timeout_ms / 1000.0)
-    while loop.time() < deadline:
-        await asyncio.sleep(2)
-        status = await call_opencode("get", "/session/status")
-        if isinstance(status, dict) and session_id in status:
-            if status[session_id].get("running") is not True:
-                break
-        else:
-            break
-
-    messages = await call_opencode(
-        "get",
-        f"/session/{session_id}/message",
-        query_params=query,
-    )
+    error, messages = await _run_async_session(prompt, directory, timeout_ms)
+    if error:
+        return error
     return json.dumps(messages, indent=2)
 
 
@@ -228,42 +259,11 @@ async def opencode_run_final(
         an error string if session creation fails or no messages were returned.
 
     """
-    query: dict[str, str] = {}
-    if directory:
-        query["directory"] = directory
-
-    session = await call_opencode("post", "/session", query_params=query)
-    if isinstance(session, str) or "id" not in session:
-        return f"Failed to create session: {session}"
-
-    session_id: str = session["id"]
-    await call_opencode(
-        "post",
-        f"/session/{session_id}/prompt_async",
-        query_params=query,
-        body={"parts": [{"type": "text", "text": prompt}]},
-    )
-
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + (timeout_ms / 1000.0)
-    while loop.time() < deadline:
-        await asyncio.sleep(2)
-        status = await call_opencode("get", "/session/status")
-        if isinstance(status, dict) and session_id in status:
-            if status[session_id].get("running") is not True:
-                break
-        else:
-            break
-
-    messages = await call_opencode(
-        "get",
-        f"/session/{session_id}/message",
-        query_params=query,
-    )
-
+    error, messages = await _run_async_session(prompt, directory, timeout_ms)
+    if error:
+        return error
     if isinstance(messages, list) and len(messages) > 0:
         return json.dumps(messages[-1], indent=2)
-
     return json.dumps(messages, indent=2)
 
 
@@ -294,21 +294,12 @@ async def opencode_status() -> str:
 
 
 def main() -> None:
-    """Start the MCP server with the five workflow tools.
+    """Start the MCP server as an SSE/HTTP sidecar on port 8000."""
+    import sys
 
-    Transport mode depends on ``MCP_PORT``:
-
-    - Set  → SSE/HTTP server on that port (network-accessible sidecar).
-    - Unset → stdio subprocess (parent process communicates via stdin/stdout).
-    """
     try:
-        if MCP_PORT:
-            mcp.run(transport="sse")
-        else:
-            mcp.run(transport="stdio")
+        mcp.run(transport="sse")
     except Exception as exc:
-        import sys
-
         sys.stderr.write(f"Fatal error: {exc}\n")
         raise SystemExit(1) from exc
 

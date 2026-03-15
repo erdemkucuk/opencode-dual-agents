@@ -7,19 +7,20 @@ A demo of two containerized [opencode](https://opencode.ai) agents communicating
 ```
 Host
  └─ docker compose
-     ├─ agent1 (Luigi)  :4097 ──── custom MCP server (stdio) ──► agent2:4096
-     └─ agent2 (Mario)  :4098
+     ├─ agent1 (Luigi)  :4097 ──── opencode serve
+     │                  :4100 ──── custom MCP server (SSE, sidecar)
+     └─ agent2 (Mario)  :4098 ──── opencode serve
                         :4099 ──── custom MCP server (SSE, sidecar)
 ```
 
 Both agents run `opencode serve` inside Docker and use the free `opencode/minimax-m2.5-free` model for testing.
 
-- **Agent 1 / Luigi** — orchestrator. Exposes port 4097 on the host. Spawns the custom MCP server as a local stdio process to delegate tasks to Agent 2.
-- **Agent 2 / Mario** — worker. Exposes port 4098 on the host. Also runs the MCP server as an HTTP sidecar on port 4095 (host: 4099).
+- **Agent 1 / Luigi** — orchestrator. Exposes port 4097 on the host. Runs the MCP server as an SSE sidecar on port 8000 (host: 4100) to delegate tasks to Agent 2.
+- **Agent 2 / Mario** — worker. Exposes port 4098 on the host. Also runs the MCP server as an SSE sidecar on port 8000 (host: 4099).
 
 ### Inter-agent communication
 
-Agent 1's opencode spawns the Python MCP server as a child process (stdio MCP transport). The server exposes **5 workflow tools**:
+Both agents run the MCP server as an SSE sidecar on port 8000 (container), exposing the same 5 tools at `:4100/sse` (agent1) and `:4099/sse` (agent2) on the host. The server exposes **5 workflow tools**:
 
 | Tool | Description |
 |---|---|
@@ -29,14 +30,12 @@ Agent 1's opencode spawns the Python MCP server as a child process (stdio MCP tr
 | `opencode_run_final` | Same async/poll flow as `opencode_run`, but returns only the **last message** instead of the full history. Useful when you only care about the final answer and want to avoid processing intermediate tool-call messages. |
 | `opencode_status` | **Diagnostic snapshot.** Bundles three API calls — `GET /global/health`, `GET /session` (count), and `GET /provider` — into a single JSON response with keys `health`, `session_count`, and `providers`. |
 
-Agent 2 runs the same server with `MCP_PORT=4095`, exposing the same 5 tools over SSE transport at `:4099/sse` on the host.
-
 ### About the custom MCP server
 
 `mcp-server/` is a Python server built on `mcp` (FastMCP). It replaces the community `opencode-mcp` package with a self-contained implementation that:
 
 - Exposes **5 hand-written workflow tools** (see table above): `opencode_ask`, `opencode_run`, `opencode_run_final`, `opencode_status`, `opencode_health`.
-- Runs in **dual mode**: stdio (for agent1's local MCP command) or SSE (for the agent2 sidecar), controlled by the `MCP_PORT` environment variable.
+- Always runs in **SSE/HTTP mode** on port 8000.
 - Uses `httpx` to communicate with the opencode API.
 
 ## Prerequisites
@@ -78,13 +77,13 @@ curl -s -X POST "http://localhost:4097/session/$SESSION/message" \
 ├── Dockerfile                          # Shared image (node:20-slim + opencode + MCP server build)
 ├── docker-compose.yml                  # Agent services and bridge network
 ├── agent1-config/
-│   ├── opencode.json                   # Model config + agent2 MCP (type: local, python command)
+│   ├── opencode.json                   # Model config + agent2 MCP (type: remote, SSE URL)
 │   └── AGENTS.md                       # Persona: Luigi
 ├── agent2-config/
 │   ├── opencode.json                   # Model config
 │   └── AGENTS.md                       # Persona: Mario
 ├── mcp-server/
-│   ├── main.py                         # Custom Python MCP server (dual stdio/SSE mode)
+│   ├── bridge.py                       # Custom Python MCP server (SSE/HTTP mode)
 │   ├── requirements.txt                # Python deps
 │   └── entrypoint.sh                   # Generic entrypoint (opencode + optional MCP sidecar)
 └── scripts/
