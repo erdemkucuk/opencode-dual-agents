@@ -39,7 +39,11 @@ MCP_PORT: int | None = int(_raw_port) if _raw_port else None
 
 _HTTP_TIMEOUT: float = 30.0
 
-mcp: FastMCP = FastMCP("opencode-bridge")
+mcp: FastMCP = FastMCP(
+    "opencode-bridge",
+    host="0.0.0.0",
+    port=MCP_PORT or 8000,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +303,7 @@ def main() -> None:
     """
     try:
         if MCP_PORT:
-            mcp.run(transport="sse", port=MCP_PORT, host="0.0.0.0")
+            mcp.run(transport="sse")
         else:
             mcp.run(transport="stdio")
     except Exception as exc:
