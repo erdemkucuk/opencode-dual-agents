@@ -183,12 +183,14 @@ async def _run_async_session(
     if error:
         return error, None
 
-    await call_opencode(
+    prompt_result = await call_opencode(
         "post",
         f"/session/{session_id}/prompt_async",
         query_params=query,
         body={"parts": [{"type": "text", "text": prompt}]},
     )
+    if isinstance(prompt_result, str) and prompt_result.startswith("Error"):
+        return f"Failed to submit prompt: {prompt_result}", None
 
     loop = asyncio.get_running_loop()
     deadline = loop.time() + (timeout_ms / 1000.0)
