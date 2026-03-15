@@ -32,7 +32,7 @@ Agent 1 uses 5 custom workflow tools provided by the `mcp-server`:
 | `docker-compose.yml` | Service definitions and bridge network (`agents`). |
 | `agent1-config/` | Agent 1 configuration and identity (Luigi). |
 | `agent2-config/` | Agent 2 configuration and identity (Mario). |
-| `mcp-server/bridge.py` | Custom Python FastMCP server (dual stdio/SSE mode). |
+| `mcp-server/bridge.py` | Custom Python FastMCP server (SSE/HTTP mode on port 8000). |
 | `mcp-server/entrypoint.sh` | Generic container entrypoint for opencode + optional MCP sidecar. |
 | `tests/` | Pytest integration tests for end-to-end communication. |
 
