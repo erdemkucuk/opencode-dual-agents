@@ -29,6 +29,7 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 
 A2A_MARIO_URL: str = os.getenv("A2A_MARIO_URL", "http://agent2:8000")
+_HTTP_TIMEOUT: float = 60.0
 
 mcp: FastMCP = FastMCP(
     "opencode-bridge",
@@ -77,7 +78,7 @@ async def _call_mario(prompt: str) -> str:
         The agent's text response, or an error message string.
     """
     message = _new_user_message(prompt)
-    async with httpx.AsyncClient() as http_client:
+    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as http_client:
         try:
             client = await ClientFactory.connect(
                 A2A_MARIO_URL, ClientConfig(httpx_client=http_client)

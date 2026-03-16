@@ -87,6 +87,7 @@ class OpenCodeAgentExecutor(AgentExecutor):
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         """Cancellation is not supported."""
+        raise NotImplementedError("Cancellation is not supported.")
 
 
 # ---------------------------------------------------------------------------
