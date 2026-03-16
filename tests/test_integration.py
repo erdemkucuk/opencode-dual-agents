@@ -7,6 +7,7 @@ import httpx
 
 AGENT1_BASE = "http://localhost:4097"
 AGENT2_BASE = "http://localhost:4098"
+AGENT2_A2A_BASE = "http://localhost:4099"
 DEFAULT_QUESTION = "Ask Agent 2 what its name is, then tell me the answer."
 
 
@@ -111,13 +112,39 @@ class TestAgent2Isolation:
         )
 
 
+class TestAgentCard:
+    """Scenario 4: Mario exposes a valid A2A Agent Card."""
+
+    def test_agent2_exposes_agent_card(self, agents):
+        """Fetches Mario's Agent Card from /.well-known/agent.json and validates
+        the required fields: name, url, version, capabilities, and skills.
+        """
+        r = httpx.get(
+            f"{AGENT2_A2A_BASE}/.well-known/agent.json", timeout=10
+        )
+        assert r.status_code == 200, (
+            f"Agent 2 Agent Card returned {r.status_code}"
+        )
+        card = r.json()
+        assert card.get("name") == "Mario", (
+            f"Expected name 'Mario', got: {card.get('name')}"
+        )
+        assert "url" in card, "Agent Card missing 'url'"
+        assert "version" in card, "Agent Card missing 'version'"
+        assert "capabilities" in card, "Agent Card missing 'capabilities'"
+        assert "skills" in card, "Agent Card missing 'skills'"
+        assert len(card["skills"]) > 0, "Agent Card has no skills"
+
+
 class TestEndToEndDelegation:
-    """Scenario 4: Agent 1 delegates to Agent 2 via the MCP tool."""
+    """Scenario 5: Agent 1 delegates to Agent 2 via A2A-backed MCP tools."""
 
     def test_agent1_delegates_to_agent2(self, agents):
-        """Instructs Agent 1 to ask Agent 2 for its name. Asserts 'Mario' appears in
-        the final reply, which requires the full delegation chain to succeed:
-        Agent 1 → opencode_ask MCP tool → Agent 2 REST API → 'Mario' → Agent 1 reply.
+        """Instructs Agent 1 to ask Agent 2 for its name.
+
+        Asserts 'Mario' appears in the final reply, which requires the full
+        delegation chain to succeed:
+        Agent 1 → MCP (bridge.py) → A2A → Agent 2 (a2a_server.py) → opencode.
         """
         response = _send_message(DEFAULT_QUESTION)
         assert "Mario" in response, (

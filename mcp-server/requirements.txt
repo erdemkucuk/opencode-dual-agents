@@ -1,4 +1,6 @@
+a2a-sdk[http-server]>=0.3.0
 mcp[cli]
 httpx
 pydantic
 python-dotenv
+uvicorn

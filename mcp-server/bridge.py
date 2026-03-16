@@ -1,37 +1,34 @@
-"""
-MCP server bridge exposing an opencode REST API via high-level workflow tools.
+"""MCP server bridge for Luigi (Agent 1).
 
-This server provides five hand-written composite workflow tools for common
-operations, acting as a simplified interface for inter-agent delegation.
+Exposes tools for delegating tasks to Mario (Agent 2) via the A2A protocol.
+The A2A task lifecycle replaces the hand-rolled async polling loop.
 
 Always runs as an SSE/HTTP server on port 8000.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
+import sys
+import uuid
 from typing import Any
 
 import httpx
+from a2a.client import ClientFactory
+from a2a.client.client_factory import ClientConfig
+from a2a.types import Message, Part, Role, TextPart
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
-# Load .env so OPENCODE_BASE_URL can be set without shell exports.
+# Load .env so A2A_MARIO_URL can be set without shell exports.
 load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Module-level configuration
 # ---------------------------------------------------------------------------
 
-OPENCODE_BASE: str = os.getenv("OPENCODE_BASE_URL", "http://localhost:4096")
-"""REST API base URL for the opencode instance.
-
-Defaults to ``http://localhost:4096``.
-"""
-
-_HTTP_TIMEOUT: float = 60.0
+A2A_MARIO_URL: str = os.getenv("A2A_MARIO_URL", "http://agent2:8000")
 
 mcp: FastMCP = FastMCP(
     "opencode-bridge",
@@ -41,251 +38,151 @@ mcp: FastMCP = FastMCP(
 
 
 # ---------------------------------------------------------------------------
-# Utility functions
+# A2A client helper
 # ---------------------------------------------------------------------------
 
 
-async def call_opencode(
-    method: str,
-    path: str,
-    path_params: dict[str, Any] | None = None,
-    query_params: dict[str, Any] | None = None,
-    body: Any = None,
-) -> Any:
-    """Make an HTTP request to the opencode REST API.
+def _new_user_message(prompt: str) -> Message:
+    return Message(
+        role=Role.user,
+        parts=[Part(root=TextPart(text=prompt))],
+        message_id=str(uuid.uuid4()),
+    )
 
-    Substitutes ``{key}`` placeholders in *path* with values from
-    *path_params*, then issues the request with optional query parameters
-    and a JSON body.
 
-    Args:
-        method: HTTP verb (case-insensitive), e.g. ``"get"`` or ``"POST"``.
-        path: URL path template, e.g. ``"/session/{sessionId}/message"``.
-        path_params: Path-template variable substitutions.
-        query_params: Query-string parameter key/value pairs.
-        body: JSON-serialisable request body; ignored for GET/DELETE.
-
-    Returns:
-        Parsed JSON (``dict`` or ``list``) when the response contains valid
-        JSON; otherwise the raw response text as a ``str``. Returns a
-        descriptive error string if the request itself raises an exception.
-
-    """
-    resolved_path = path
-    if path_params:
-        for key, value in path_params.items():
-            resolved_path = resolved_path.replace(f"{{{key}}}", str(value))
-
-    url = f"{OPENCODE_BASE}{resolved_path}"
-
-    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
-        try:
-            response = await client.request(
-                method=method.upper(),
-                url=url,
-                params=query_params,
-                json=body,
+def _extract_text(event: Any) -> str:
+    """Pull the text content out of a client event (Message or Task tuple)."""
+    if isinstance(event, Message):
+        return "\n".join(
+            p.root.text for p in event.parts if hasattr(p.root, "text")
+        )
+    if isinstance(event, tuple):
+        # (Task, UpdateEvent | None)
+        task, _ = event
+        if task.status and task.status.message:
+            msg = task.status.message
+            return "\n".join(
+                p.root.text for p in msg.parts if hasattr(p.root, "text")
             )
-            try:
-                return response.json()
-            except Exception:
-                return response.text
-        except Exception as exc:
-            return f"Error calling opencode: {exc}"
+    return ""
 
 
-async def _create_session(directory: str | None) -> tuple[str, str, dict[str, str]]:
-    """Create a new opencode session.
+async def _call_mario(prompt: str) -> str:
+    """Send a prompt to Mario via A2A and return the text response.
 
     Args:
-        directory: Optional working directory for the session.  When
-            provided it is forwarded as a ``directory`` query parameter on
-            every subsequent request that belongs to this session.
+        prompt: Natural-language instruction for Mario.
 
     Returns:
-        A ``(error_string, session_id, query)`` tuple where:
-
-        - *error_string* — non-empty human-readable message when session
-          creation fails; empty string on success.
-        - *session_id* — the opaque session identifier returned by the API;
-          empty string on failure.
-        - *query* — ready-to-use query-parameter dict (``{"directory": …}``
-          when *directory* was supplied, otherwise ``{}``); pass this as
-          *query_params* to every ``call_opencode`` call in the same session
-          so the API routes requests to the correct working directory.
+        The agent's text response, or an error message string.
     """
-    query: dict[str, str] = {"directory": directory} if directory else {}
-    session = await call_opencode("post", "/session", query_params=query)
-    if isinstance(session, str) or "id" not in session:
-        return f"Failed to create session: {session}", "", {}
-    return "", session["id"], query
+    message = _new_user_message(prompt)
+    async with httpx.AsyncClient() as http_client:
+        try:
+            client = await ClientFactory.connect(
+                A2A_MARIO_URL, ClientConfig(httpx_client=http_client)
+            )
+            async for event in client.send_message(message):
+                text = _extract_text(event)
+                if text:
+                    return text
+            return ""
+        except Exception as exc:
+            return f"Error calling Mario via A2A: {exc}"
 
 
 # ---------------------------------------------------------------------------
-# Hand-written high-level workflow tools
+# MCP tools
 # ---------------------------------------------------------------------------
 
 
 @mcp.tool()
 async def opencode_health() -> str:
-    """Check whether the opencode server is healthy.
+    """Check whether Mario (Agent 2) is healthy via its A2A Agent Card.
 
     Returns:
-        JSON-formatted health status from ``GET /global/health``.
-
+        JSON-formatted health status derived from the Agent Card endpoint.
     """
-    result = await call_opencode("get", "/global/health")
-    return json.dumps(result, indent=2)
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            resp = await client.get(
+                f"{A2A_MARIO_URL}/.well-known/agent.json"
+            )
+            resp.raise_for_status()
+            return json.dumps(
+                {"status": "healthy", "agent": resp.json()}, indent=2
+            )
+        except Exception as exc:
+            return json.dumps(
+                {"status": "unhealthy", "error": str(exc)}, indent=2
+            )
 
 
 @mcp.tool()
-async def opencode_ask(prompt: str, directory: str | None = None) -> str:
-    """Send a one-shot prompt to opencode and return the response.
-
-    Creates a new session, sends *prompt* synchronously via the session
-    message endpoint, and returns the raw response.
+async def opencode_ask(prompt: str) -> str:
+    """Send a one-shot prompt to Mario (Agent 2) via A2A and return the response.
 
     Args:
         prompt: Natural-language instruction for the opencode agent.
-        directory: Optional working directory path for the session.
 
     Returns:
-        JSON-formatted response from the session message endpoint, or an
-        error string if session creation fails.
-
+        The agent's text response.
     """
-    error, session_id, query = await _create_session(directory)
-    if error:
-        return error
-
-    response = await call_opencode(
-        "post",
-        f"/session/{session_id}/message",
-        query_params=query,
-        body={"parts": [{"type": "text", "text": prompt}]},
-    )
-    return json.dumps(response, indent=2)
-
-
-async def _run_async_session(
-    prompt: str,
-    directory: str | None,
-    timeout_ms: int,
-) -> tuple[str, list[Any] | Any]:
-    """Create a session, fire an async prompt, and poll until completion.
-
-    Returns:
-        A ``(error_string, messages)`` tuple.  On failure *error_string* is
-        non-empty and *messages* is ``None``; on success *error_string* is
-        empty and *messages* holds the session message list.
-    """
-    error, session_id, query = await _create_session(directory)
-    if error:
-        return error, None
-
-    prompt_result = await call_opencode(
-        "post",
-        f"/session/{session_id}/prompt_async",
-        query_params=query,
-        body={"parts": [{"type": "text", "text": prompt}]},
-    )
-    if isinstance(prompt_result, str) and prompt_result.startswith("Error"):
-        return f"Failed to submit prompt: {prompt_result}", None
-
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + (timeout_ms / 1000.0)
-    while loop.time() < deadline:
-        await asyncio.sleep(2)
-        status = await call_opencode("get", "/session/status")
-        if isinstance(status, dict) and session_id in status:
-            if status[session_id].get("running") is not True:
-                break
-        else:
-            break
-
-    messages = await call_opencode(
-        "get",
-        f"/session/{session_id}/message",
-        query_params=query,
-    )
-    return "", messages
+    return await _call_mario(prompt)
 
 
 @mcp.tool()
-async def opencode_run(
-    prompt: str,
-    directory: str | None = None,
-    timeout_ms: int = 20_000,
-) -> str:
-    """Run a task asynchronously and poll for completion.
+async def opencode_run(prompt: str, timeout_ms: int = 60_000) -> str:
+    """Run a task on Mario (Agent 2) via A2A and return the response.
 
-    Fires *prompt* via the async endpoint, then polls ``GET /session/status``
-    every two seconds until the session finishes or *timeout_ms* elapses.
+    The A2A protocol handles the task lifecycle natively — no custom
+    polling loop is needed.
 
     Args:
         prompt: Natural-language task for the opencode agent.
-        directory: Optional working directory path for the session.
-        timeout_ms: Maximum time to wait for completion, in milliseconds.
+        timeout_ms: Kept for API compatibility; A2A handles its own timeout.
 
     Returns:
-        JSON-formatted list of all messages produced during the session, or
-        an error string if session creation fails.
-
+        JSON object with the agent's response under the ``result`` key.
     """
-    error, messages = await _run_async_session(prompt, directory, timeout_ms)
-    if error:
-        return error
-    return json.dumps(messages, indent=2)
+    result = await _call_mario(prompt)
+    return json.dumps({"result": result}, indent=2)
 
 
 @mcp.tool()
-async def opencode_run_final(
-    prompt: str,
-    directory: str | None = None,
-    timeout_ms: int = 20_000,
-) -> str:
-    """Run a task asynchronously and poll for completion, returning the last message.
-
-    Fires *prompt* via the async endpoint, then polls ``GET /session/status``
-    every two seconds until the session finishes or *timeout_ms* elapses.
+async def opencode_run_final(prompt: str, timeout_ms: int = 60_000) -> str:
+    """Run a task on Mario (Agent 2) via A2A and return the final response.
 
     Args:
         prompt: Natural-language task for the opencode agent.
-        directory: Optional working directory path for the session.
-        timeout_ms: Maximum time to wait for completion, in milliseconds.
+        timeout_ms: Kept for API compatibility; A2A handles its own timeout.
 
     Returns:
-        JSON-formatted final message produced during the session, or
-        an error string if session creation fails or no messages were returned.
-
+        The final text response from the agent.
     """
-    error, messages = await _run_async_session(prompt, directory, timeout_ms)
-    if error:
-        return error
-    if isinstance(messages, list) and len(messages) > 0:
-        return json.dumps(messages[-1], indent=2)
-    return json.dumps(messages, indent=2)
+    return await _call_mario(prompt)
 
 
 @mcp.tool()
 async def opencode_status() -> str:
-    """Get a combined snapshot of server health, session count, and providers.
-
-    Bundles three API calls into one convenient response.
+    """Get a snapshot of Mario (Agent 2)'s status via its A2A Agent Card.
 
     Returns:
-        JSON object with keys ``health``, ``session_count``, and
-        ``providers``.
-
+        JSON object with ``agent_card`` and ``status`` keys.
     """
-    health = await call_opencode("get", "/global/health")
-    sessions = await call_opencode("get", "/session")
-    providers = await call_opencode("get", "/provider")
-    session_count = len(sessions) if isinstance(sessions, list) else 0
-    return json.dumps(
-        {"health": health, "session_count": session_count, "providers": providers},
-        indent=2,
-    )
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            resp = await client.get(
+                f"{A2A_MARIO_URL}/.well-known/agent.json"
+            )
+            resp.raise_for_status()
+            return json.dumps(
+                {"agent_card": resp.json(), "status": "reachable"}, indent=2
+            )
+        except Exception as exc:
+            return json.dumps(
+                {"status": "unreachable", "error": str(exc)}, indent=2
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -295,8 +192,6 @@ async def opencode_status() -> str:
 
 def main() -> None:
     """Start the MCP server as an SSE/HTTP sidecar on port 8000."""
-    import sys
-
     try:
         mcp.run(transport="sse")
     except Exception as exc:

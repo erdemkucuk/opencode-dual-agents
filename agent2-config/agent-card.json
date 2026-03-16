@@ -1,0 +1,14 @@
+{
+  "name": "Mario",
+  "description": "Worker agent. Executes tasks delegated by Luigi.",
+  "version": "1.0.0",
+  "url": "http://agent2:8000/",
+  "capabilities": { "streaming": false },
+  "skills": [
+    {
+      "id": "execute_task",
+      "name": "Execute Task",
+      "description": "Runs a prompt via the local opencode instance and returns the result."
+    }
+  ]
+}

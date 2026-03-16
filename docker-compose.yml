@@ -7,11 +7,12 @@ services:
     build: .
     environment:
       - AGENT_NAME=agent1
+      - A2A_MARIO_URL=http://agent2:8000
     volumes:
       - ./agent1-config:/agent
     ports:
       - "4097:4096"   # opencode serve
-      - "4100:8000"   # custom FastMCP SSE server
+      - "4100:8000"   # MCP SSE sidecar (bridge.py)
     networks:
       - agents
 
@@ -23,6 +24,6 @@ services:
       - ./agent2-config:/agent
     ports:
       - "4098:4096"   # opencode serve
-      - "4099:8000"   # custom FastMCP SSE server
+      - "4099:8000"   # A2A HTTP sidecar (a2a_server.py)
     networks:
       - agents

@@ -21,11 +21,17 @@ until curl -sf http://localhost:4096/global/health > /dev/null 2>&1; do
 done
 echo "[$AGENT_NAME] opencode is healthy."
 
-# Start the custom MCP bridge as an HTTP sidecar on port 8000.
-# This makes all opencode tools available over SSE (Server-Sent Events).
-echo "[$AGENT_NAME] Starting custom MCP HTTP stream server on port 8000..."
+# Start the appropriate sidecar on port 8000.
+# - agent1 (Luigi): MCP SSE server (bridge.py) that delegates to Mario via A2A.
+# - agent2 (Mario): A2A HTTP server (a2a_server.py) that wraps the local opencode.
 export OPENCODE_BASE_URL="${OPENCODE_BASE_URL:-http://localhost:4096}"
-/.venv/bin/python3 /mcp-server/bridge.py &
+if [ "${AGENT_NAME}" = "agent2" ]; then
+  echo "[$AGENT_NAME] Starting A2A server on port 8000..."
+  /.venv/bin/python3 /mcp-server/a2a_server.py &
+else
+  echo "[$AGENT_NAME] Starting MCP SSE server on port 8000..."
+  /.venv/bin/python3 /mcp-server/bridge.py &
+fi
 MCP_PID=$!
 
 # Ensure child processes are terminated gracefully when the script exits.

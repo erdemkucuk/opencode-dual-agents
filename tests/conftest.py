@@ -13,9 +13,9 @@ import pytest
 AGENT1_BASE = "http://localhost:4097"
 AGENT2_BASE = "http://localhost:4098"
 AGENT1_MCP_BASE = "http://localhost:4100"
-AGENT2_MCP_BASE = "http://localhost:4099"
+AGENT2_A2A_BASE = "http://localhost:4099"
 READY_TIMEOUT = 30  # seconds to wait for opencode endpoints
-MCP_READY_TIMEOUT = 10  # seconds to wait for MCP sidecar (starts after opencode)
+MCP_READY_TIMEOUT = 10  # seconds to wait for sidecars (start after opencode)
 POLL_INTERVAL = 2
 
 
@@ -60,10 +60,16 @@ def agents():
         # First wait for both opencode HTTP endpoints to be ready.
         _wait_for_agent(AGENT1_BASE, "Agent 1")
         _wait_for_agent(AGENT2_BASE, "Agent 2")
-        # MCP sidecars start only after opencode is healthy, so a shorter
+        # Sidecars start only after opencode is healthy, so a shorter
         # timeout is sufficient once the main endpoints are up.
+        # Agent 1: MCP SSE sidecar (bridge.py)
         _wait_for_url(f"{AGENT1_MCP_BASE}/sse", "Agent 1 MCP", MCP_READY_TIMEOUT)
-        _wait_for_url(f"{AGENT2_MCP_BASE}/sse", "Agent 2 MCP", MCP_READY_TIMEOUT)
+        # Agent 2: A2A HTTP sidecar (a2a_server.py) — poll the Agent Card endpoint
+        _wait_for_url(
+            f"{AGENT2_A2A_BASE}/.well-known/agent.json",
+            "Agent 2 A2A",
+            MCP_READY_TIMEOUT,
+        )
         yield
     finally:
         _compose(["down", "--remove-orphans"])
